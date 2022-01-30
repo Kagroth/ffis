@@ -7,9 +7,14 @@ class FCMAnalyzer:
         if clusters is None:
             self.clusters = [x for x in range(2, 10)]
         elif isinstance(clusters, list):
+            if 0 in clusters or 1 in clusters:
+                print("k cannot be equal 0 or 1")
+                return
+                
             self.clusters = clusters
         else:
             print("Error! Invalid type of clusters parameter")
+        
 
     def fit(self, data, error=0.01, maxiter=10) -> list:
         # k can't be bigger than number of data points

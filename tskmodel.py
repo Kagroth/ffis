@@ -2,6 +2,7 @@ import enum
 import math
 import numpy as np
 import FuzzySystem as fuzz
+from sklearn.metrics import mean_squared_error
 
 class TSKModel:
     def __init__(self, rules: list, epochs: int=10, lr: float=0.1, eg: float=0.1) -> None:
@@ -30,6 +31,8 @@ class TSKModel:
             for rule_index in range(len(rules)):
                 epoch_coeffs.append(list())
 
+            errs = list()
+
             for input_vector, output_value in zip(self.input_data, self.output_data):
                 
                 input_dict = dict()
@@ -40,20 +43,23 @@ class TSKModel:
                 inputs = (input_dict)
                 fis_result = fis.eval(inputs, verbose=False)
                 result = fuzz.TSKDefuzzifier(fis_result).eval()
+                error = output_value - result
                 # error = output_value - result
-                error = ((output_value - result) ** 2) / 2
+                errs.append(result)
                 new_coeffs = self.coefficients_update(input_vector, fis_result, fis.rules, error)
 
                 for rule_index, rule in enumerate(rules):
                     nc = new_coeffs[rule_index]
                     epoch_coeffs[rule_index].append(nc)
                 
-                epoch_error += error
+                # epoch_error += error
 
             # print("Epoch error sum: ", epoch_error)
-            epoch_error = epoch_error / len(self.input_data)
+            # epoch_error = epoch_error / len(self.input_data)
             # print("Epoch error mean: ", epoch_error)
             # new coefficients are mean of updated coefficients computed for every data point pair
+            epoch_error = mean_squared_error(errs, self.output_data)
+
             new_coeffs = self.coefficients_mean(epoch_coeffs) 
             
             # update rules - set new coefficients
@@ -67,7 +73,7 @@ class TSKModel:
                 self.fis = fis
                 return error_history
             
-            # print("Epoch {}, error: {}".format(epoch + 1, epoch_error))
+            print("Epoch {}, error: {}".format(epoch + 1, epoch_error))
             epoch += 1
 
         print("End of training")
