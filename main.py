@@ -1,48 +1,20 @@
 
-from sklearn import cluster
 from random_data_generator import RandomDataGenerator
 from fcm_analyzer import FCMAnalyzer
-from fcm_visualizer import FCMVisualizer
 from utils import feature_std, create_fuzzy_variables_from_clusters, create_rules_from_clusters
 from tskmodel import TSKModel
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 
 import os
 import time
-import FuzzySystem as fuzz
 import numpy as np
 import matplotlib.pyplot as plt
 
 rdg = RandomDataGenerator()
 fcm_analyzer = FCMAnalyzer()
 
-
-""" # 3D normal points
-feature_names = ['X', 'Y', 'Z']
-points1 = rdg.get_3D_normal_points(size=5, means=(0, 0, 0), stds=(1, 1, 1))
-points2 = rdg.get_3D_normal_points(size=5, means=(10, 0, 0), stds=(1, 1, 1))
-points3 = rdg.get_3D_normal_points(size=5, means=(0, 10, 0), stds=(1, 1, 1))
-points4 = rdg.get_3D_normal_points(size=5, means=(0, 0, 10), stds=(1, 1, 1))
-points5 = rdg.get_3D_normal_points(size=5, means=(10, 10, 0), stds=(1, 1, 1))
-data = np.hstack((points1, points2, points3, points4, points5)).T """
-
-
-
-""" # 3D uniform points
-feature_names = ['X', 'Y', 'Z']
-points1 = rdg.get_3D_uniform_points(size=10, value_range=(3, 7))
-points2 = rdg.get_3D_uniform_points(size=10, value_range=(2, 8))
-points3 = rdg.get_3D_uniform_points(size=10, value_range=(0, 5))
-points4 = rdg.get_3D_uniform_points(size=10, value_range=(1, 3))
-points5 = rdg.get_3D_uniform_points(size=10, value_range=(1, 2))
-data = np.hstack((points1, points2, points3, points4, points5)).T """
-
-# G datapoints from K. Passino
-feature_names = ['X', 'Y', 'Z']
-data = np.array([[0, 2, 1], [2, 4, 5], [3, 6, 6]])
-print(data)
-
-""" # Wine Quality dataset (red wine)
+# Wine Quality dataset (red wine)
 dataset_path = os.path.join(os.getcwd(), "datasets", "winequality-red.csv")
 feature_names = list()
 with open(dataset_path, "r") as f:
@@ -50,51 +22,61 @@ with open(dataset_path, "r") as f:
     headers_list = headers.split(";")
     headers_list = [header.replace("\"", "").replace("\n", "") for header in headers_list]
     feature_names = headers_list
-print(feature_names)
-data = np.genfromtxt(os.path.join(os.getcwd(), "datasets", "winequality-red.csv"), delimiter=";", skip_header=True)
- """
-# scaler = MinMaxScaler()
-scaler = StandardScaler()
-# data_min_max = scaler.fit_transform(data[:100, :]).T
-data_min_max = data.T
-clustering_result = fcm_analyzer.fit(data_min_max, error=0.005, maxiter=1000)
+
+data = np.genfromtxt(dataset_path, delimiter=";", skip_header=True)
+
+scaler = MinMaxScaler()
+data_min_max = scaler.fit_transform(data[:, :])
+train_inputs, test_inputs, train_outputs, test_outputs = train_test_split(data_min_max[:, :-1], data_min_max[:, -1], test_size=0.3)
+
+
+clustering_result = fcm_analyzer.fit(data_min_max.T, error=0.001, maxiter=100)
 fcm_analyzer.show_fpc()
-# use for 3D data
-# fcm_visualizer = FCMVisualizer(fcm_clustering_result=clustering_result)
-# fcm_visualizer.view_all_partitions()
-# #########################################################################
-
+part = fcm_analyzer.get_partition(k=2)
 best_fuzzy_partition = fcm_analyzer.get_best_partition()
-# best_fuzzy_partition = fcm_analyzer.get_partition(k=3)
-# print(best_fuzzy_partition["membership"]["u"])
-print(np.round(best_fuzzy_partition["membership"]["u"].T, decimals=2))
-print(feature_std(best_fuzzy_partition["membership"]["u"].T))
-print(np.round(feature_std(data), decimals=2))
-# exit()
-# best_fuzzy_partition = fcm_analyzer.get_partition(k=3)
+# best_fuzzy_partition = fcm_analyzer.get_partition(k=5) # use for select k-partition
 
-fuzzy_vars = create_fuzzy_variables_from_clusters(best_fuzzy_partition['cluster_centers'], feature_names=feature_names, show_fuzzy_vars=False)
-
-# Show normalized fuzzy variable membership functions
-# for fuzzy_var in fuzzy_vars:
-#     fuzzy_var.show()
+fuzzy_vars = create_fuzzy_variables_from_clusters(best_fuzzy_partition['cluster_centers'], 
+                                                cluster_stds=best_fuzzy_partition['crisp_cluster_stds'], 
+                                                feature_names=feature_names, 
+                                                show_fuzzy_vars=False)
 
 rules = create_rules_from_clusters(best_fuzzy_partition['cluster_centers'], fuzzy_vars)
 
 for r in rules:
     r.show()
 
-tsk_model = TSKModel(rules, epochs=100, lr=0.02)
+tsk_model = TSKModel(rules, epochs=5000, lr=0.2, momentum=0.9, eg=0.05)
 
 start_time = time.time()
 
-error_history = tsk_model.fit(data_min_max.T[:, :-1], feature_names[:-1], data_min_max.T[:, -1])
+error_history = tsk_model.fit(train_inputs, feature_names[:-1], train_outputs)
 
 end_time = time.time()
+test_mse = tsk_model.test(test_inputs, test_outputs)
 
 print("Error: ", error_history[-1])
-print("Learning time: {} s".format(end_time - start_time))
-
+print("Learning time: {} s".format(np.round(end_time - start_time, decimals=2)))
+plt.xlabel("Epoch")
+plt.ylabel("Mean Squared Error")
 plt.plot(error_history)
+
+
+print("Training MSE: ", error_history[-1])
+print("Testing MSE: ", test_mse)
+
+print("Clustering fpc:")
+fcm_analyzer.show_fpc()
+print("")
+
+for r in tsk_model.fis.rules:
+    r.show()
+    print("")
+
+for index, rule in enumerate(tsk_model.fis.rules):
+    print("Coefficients for rule {}: {} \n".format(index+1, rule.consequent.get_params()))
+
+for fuzzy_var_name, fuzzy_var in tsk_model.fis.rules[0].antecedent.fuzzy_variables.items():
+    fuzzy_var.show()
 
 plt.show()

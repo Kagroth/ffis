@@ -14,7 +14,7 @@ class FCMVisualizer:
         for clustering_r in self.clustering_result:
             cluster_centers = clustering_r['cluster_centers']
 
-            ax[x, y].plot(cluster_centers[:, 0], cluster_centers[:, 1], 'rs')
+            ax[x, y].plot(cluster_centers[:, 0], cluster_centers[:, 1], 'ks')
             
             for crisp_cluster in clustering_r['crisp_clusters']:
                 clst = np.array(crisp_cluster)

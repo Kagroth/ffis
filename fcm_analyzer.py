@@ -1,5 +1,5 @@
-from skfuzzy import cluster
 from skfuzzy.cluster import cmeans
+from utils import feature_std
 import numpy as np
 
 class FCMAnalyzer:
@@ -26,12 +26,12 @@ class FCMAnalyzer:
         for cluster_count in self.clusters:
             cntr, u, u0, d, jm, p, fpc = cmeans(data, cluster_count, 2, error=error, maxiter=maxiter, init=None)
             
-            clusters = [] # list for cluster members
-            cluster_indices = [] # list for indices for cluster with highest membership 
+            clusters = list() # list for cluster members
+            cluster_indices = list() # list for indices for cluster with highest membership 
 
             # init k empty lists for cluster members
             for index in range(cluster_count):
-                clusters.append([])
+                clusters.append(list())
 
             # get maximum membership value for every data point
             max_of_each_column = np.max(u, axis=0)
@@ -46,17 +46,22 @@ class FCMAnalyzer:
                 vector = data[:, col_index]
                 cluster_index = cluster_indices[col_index]
                 
-                if clusters[cluster_index] is None:
-                    clusters[cluster_index] = []
+                # if clusters[cluster_index] is None:
+                    # clusters[cluster_index] = np.array()
                 
-                clusters[cluster_index].append(vector)
+                clusters[cluster_index].append(vector.tolist())
+
+            crisp_cluster_stds = list()
+            for cluster in clusters:
+                crisp_cluster_stds.append(feature_std(cluster))
 
             self.clustering_result.append({
                 "k": cluster_count,
                 "fpc": fpc,
                 "cluster_centers": cntr,
                 "membership": {"points": data, "u": u},
-                "crisp_clusters": np.array(clusters, dtype=object)
+                "crisp_clusters": clusters,
+                "crisp_cluster_stds": np.array(crisp_cluster_stds)
             })
         
         return self.clustering_result
