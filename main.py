@@ -1,9 +1,9 @@
 
 from random_data_generator import RandomDataGenerator
 from fcm_analyzer import FCMAnalyzer
-from utils import feature_std, create_fuzzy_variables_from_clusters, create_rules_from_clusters
+from utils import feature_std, create_fuzzy_variables_from_clusters, create_rules_from_clusters, load_dataset, split_dataset, remove_outliers
 from tskmodel import TSKModel
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.model_selection import train_test_split
 
 import os
@@ -15,19 +15,33 @@ rdg = RandomDataGenerator()
 fcm_analyzer = FCMAnalyzer()
 
 # Wine Quality dataset (red wine)
-dataset_path = os.path.join(os.getcwd(), "datasets", "winequality-red.csv")
-feature_names = list()
-with open(dataset_path, "r") as f:
-    headers = f.readline()
-    headers_list = headers.split(";")
-    headers_list = [header.replace("\"", "").replace("\n", "") for header in headers_list]
-    feature_names = headers_list
+# dataset_path = os.path.join(os.getcwd(), "datasets", "winequality-red.csv")
+# feature_names = list()
+# with open(dataset_path, "r") as f:
+#     headers = f.readline()
+#     headers_list = headers.split(";")
+#     headers_list = [header.replace("\"", "").replace("\n", "") for header in headers_list]
+#     feature_names = headers_list
 
-data = np.genfromtxt(dataset_path, delimiter=";", skip_header=True)
+# data = np.genfromtxt(dataset_path, delimiter=";", skip_header=True)
 
-scaler = MinMaxScaler()
+data, feature_names = load_dataset("winequality-red.csv")
+print(data)
+print(feature_names)
+# exit()
+# datasets = split_dataset(data, 3)
+# for d in datasets:
+#     print(d.shape)
+# print(datasets[0])
+# exit()
+# scaler = MinMaxScaler()
+print("With outliers: ", data.shape)
+data = remove_outliers(data, neighbors=3)
+print("Without outliers: ", data.shape)
+# exit()
+scaler = StandardScaler()
 data_min_max = scaler.fit_transform(data[:, :])
-train_inputs, test_inputs, train_outputs, test_outputs = train_test_split(data_min_max[:, :-1], data_min_max[:, -1], test_size=0.3)
+train_inputs, test_inputs, train_outputs, test_outputs = train_test_split(data_min_max[:, :-1], data_min_max[:, -1], test_size=0.2)
 
 
 clustering_result = fcm_analyzer.fit(data_min_max.T, error=0.001, maxiter=100)
@@ -46,7 +60,7 @@ rules = create_rules_from_clusters(best_fuzzy_partition['cluster_centers'], fuzz
 for r in rules:
     r.show()
 
-tsk_model = TSKModel(rules, epochs=5000, lr=0.2, momentum=0.9, eg=0.05)
+tsk_model = TSKModel(rules, epochs=500, lr=0.2, momentum=0.9, eg=0.05)
 
 start_time = time.time()
 

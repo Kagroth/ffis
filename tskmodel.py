@@ -1,5 +1,3 @@
-import enum
-import math
 import numpy as np
 import FuzzySystem as fuzz
 from sklearn.metrics import mean_squared_error
@@ -76,7 +74,9 @@ class TSKModel:
                 self.fis = fis
                 return error_history
             
-            print("Epoch {}, error: {}".format(epoch + 1, epoch_error))
+            if (epoch + 1) % 10 == 0 or epoch == 0:
+                print("Epoch {}, error: {}".format(epoch + 1, epoch_error))
+            
             epoch += 1
 
         print("End of training")

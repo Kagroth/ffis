@@ -2,6 +2,24 @@
 import numpy as np
 import FuzzySystem as fuzz
 import random
+import os
+from sklearn.neighbors import LocalOutlierFactor
+
+def load_dataset(filename) -> tuple:
+    """
+    Returns tuple[np.ndarray, list] with dataset and feature names
+    """
+    dataset_path = os.path.join(os.getcwd(), "datasets", filename)
+    feature_names = list()
+    with open(dataset_path, "r") as f:
+        headers = f.readline()
+        headers_list = headers.split(";")
+        headers_list = [header.replace("\"", "").replace("\n", "") for header in headers_list]
+        feature_names = headers_list
+
+    data = np.genfromtxt(dataset_path, delimiter=";", skip_header=True)
+    
+    return data, feature_names
 
 def feature_std(dataset: np.ndarray) -> np.ndarray:
     """
@@ -113,3 +131,35 @@ def create_rules_from_clusters(cluster_centers: np.ndarray, fuzzy_variables: lis
         rules.append(rule)
     
     return rules
+
+
+def split_dataset(dataset, blocks_count, overlap=False, block_size=None) -> list:
+    """
+    Splits dataset into blocks_count datasets
+    
+    Parameters
+    - dataset
+    - blocks_count
+
+    Returns list of datasets
+    """
+    if overlap and dataset.shape[0] > block_size:
+        datasets = list()
+        for i in range(blocks_count):
+            indices = np.random.choice(dataset.shape[0], block_size)
+            datasets.append(dataset[indices, :])
+        
+        return datasets
+
+    np.random.shuffle(dataset)
+    return np.array_split(dataset, blocks_count)
+
+
+
+def remove_outliers(dataset, neighbors=20) -> np.ndarray:
+    lof = LocalOutlierFactor(n_neighbors=neighbors) # 20 is default value
+    yhat = lof.fit_predict(dataset)
+    mask = yhat != -1
+    filtered_data = dataset[mask, :]
+    
+    return filtered_data
