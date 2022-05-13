@@ -23,10 +23,13 @@ class TSKModel:
 
         for rule_index, rule in enumerate(self.rules):
             self.prev_coeffs.append(list())
-            
-            for coeff_index in range(len(rule.consequent.get_params())):
-                self.prev_coeffs[rule_index].append(0)
+            self.prev_coeffs[rule_index] = rule.consequent.get_params()
 
+            # for coeff_index in range(len(rule.consequent.get_params())):
+                # self.prev_coeffs[rule_index].append(0)
+            
+            # print("Init coeffs of rule {}: {}".format(rule_index+1, self.prev_coeffs[rule_index]))
+            
         fis = fuzz.FuzzyInferenceSystem(self.rules, and_op="prod", or_op="sum")
         error_history = list()
         rules = self.rules
