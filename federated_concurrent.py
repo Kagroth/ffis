@@ -1,6 +1,6 @@
 from numpy import number
 from federated_model import FederatedModel
-from utils import load_dataset, split_dataset, remove_outliers
+from utils import load_dataset, split_dataset, remove_outliers, make_missing_values, knn_impute_dataset
 from local_model import LocalModel
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import time
@@ -8,36 +8,70 @@ import multiprocessing
 import matplotlib.pyplot as plt
 
 def run_model(model):
-    model.fit(StandardScaler(), rules_count=2)
+    model.fit()
     return model
 
 if __name__ == '__main__':
     number_of_models = 3
 
     data, feature_names = load_dataset("winequality-red.csv")
+    # data, feature_names = load_dataset("winequality-white.csv")
     data = remove_outliers(data, neighbors=3)
     print(data.shape)
-    data = data[:, :]
+    data = data[:30, :]
     
-    # datasets = split_dataset(data, number_of_models)
-    datasets = split_dataset(data, number_of_models, overlap=True, block_size=300)
+    datasets = split_dataset(data, number_of_models)
+    # datasets = split_dataset(data, number_of_models, overlap=True, block_size=200)
     
     print("Datasets shapes: ")
     shapes = ""
     for d in datasets:
         shapes += str(d.shape)
     print(shapes)
+
+    index = 0
+    datasets_weights = list()
+
+    for i in range(number_of_models):
+        datasets[i], d_weight = make_missing_values(datasets[i])
+        datasets[i] = knn_impute_dataset(datasets[i])
+        datasets_weights.append(d_weight)
+        i += 1
+
     # exit()
     local_models = list()
     training_times = list()
 
     for i in range(number_of_models):
-        lm = LocalModel(datasets[i], feature_names, epochs=200) 
+        lm = LocalModel(datasets[i], datasets_weights[i], feature_names, epochs=10, validity_method="Spearman") 
         local_models.append(lm)
 
+    local_rules = list()
+
+    # for lm in local_models:
+    #     rules = lm.create_rules(StandardScaler())
+    #     local_rules += rules
+
+    # print("Fed rules number:  ", len(local_rules))
+
+    # for lm in local_models:
+    #     lm.set_rules(local_rules)
+
+    # m = FederatedModel.run_model(local_models[0])
+    # print(m)
+    # exit()
+    fm = FederatedModel(local_models, feature_names, rounds_count=1)
+    rules = fm.create_rules()
+    # print(rules)
+    # for r in rules:
+    #     r.show()
+    fm.set_federated_rules_to_local_models(rules)
+    fm.fit()
+    exit()
     with multiprocessing.Pool(number_of_models) as p:
         st = time.time()
-        local_models = p.map(run_model, [lm for lm in local_models])
+        # local_models = p.map(run_model, [lm for lm in local_models])
+        local_models = p.map(FederatedModel.run_model, [lm for lm in local_models])
         et = time.time()
         print("Time: {} s".format(et-st))
 
@@ -75,15 +109,5 @@ if __name__ == '__main__':
             Better model: {:12s}".format(i + 1, mse, model_str))
         print("=" * 100)
         i = i + 1
-
-    fig, axs = plt.subplots(3)
-    axs[0].plot([x for x in range(len(local_models[0].error_history))], local_models[0].error_history) 
-    axs[0].set_title("Local model 1")
-    axs[1].plot([x for x in range(len(local_models[1].error_history))], local_models[1].error_history) 
-    axs[1].set_title("Local model 2")
-    axs[2].plot([x for x in range(len(local_models[2].error_history))], local_models[2].error_history) 
-    axs[2].set_title("Local model 3")
-    plt.tight_layout()
-    plt.show()    
 
 
