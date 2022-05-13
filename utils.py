@@ -4,6 +4,7 @@ import FuzzySystem as fuzz
 import random
 import os
 from sklearn.neighbors import LocalOutlierFactor
+from sklearn.impute import KNNImputer
 
 def load_dataset(filename) -> tuple:
     """
@@ -77,11 +78,13 @@ def create_fuzzy_variables_from_clusters(cluster_centers: np.ndarray, cluster_st
 
     Return: list of fuzzy variables
     """
+    print(cluster_centers.shape)
     assert cluster_centers.shape[1] == len(feature_names)
     features = list()
 
     for index in range(0, cluster_centers.shape[1] - 1): # for every feature (column) except the last column (the output)
         feature = create_fuzzy_variable(cluster_centers[:, index], feature_names[index], cluster_stds[:, index])
+        # feature = create_fuzzy_variable(cluster_centers[:, index], feature_names[index], cluster_stds[:])
         features.append(feature)
 
         if show_fuzzy_vars:
@@ -163,3 +166,28 @@ def remove_outliers(dataset, neighbors=20) -> np.ndarray:
     filtered_data = dataset[mask, :]
     
     return filtered_data
+
+
+def make_missing_values(dataset: np.ndarray) -> list:
+    k = np.random.randint(low=0, high=dataset.shape[0]) # number of rows to change
+    rng = np.random.default_rng()
+    indices = rng.choice(dataset.shape[0], k, replace=False) # sample to change indices
+
+    for x in indices:
+        col_index = rng.integers(low=0, high=dataset.shape[1], size=1)
+        dataset[x, col_index] = np.nan
+
+    sample_weight = 1 / dataset.shape[0]
+    dataset_weight = 1 - k * sample_weight
+
+    print("Affected rows: {}, Dataset weight: {}".format(k, dataset_weight))
+    print("")
+
+    return dataset, dataset_weight
+
+
+def knn_impute_dataset(dataset: np.ndarray) -> np.ndarray:
+    imputer = KNNImputer(weights="distance")
+    dataset = imputer.fit_transform(dataset)
+
+    return dataset
