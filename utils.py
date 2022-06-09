@@ -157,6 +157,49 @@ def split_dataset(dataset, blocks_count, overlap=False, block_size=None) -> list
     np.random.shuffle(dataset)
     return np.array_split(dataset, blocks_count)
 
+def split_dataset_grouped(dataset, blocks_count) -> list:
+    """
+    Split grouped datasets to balance the splitted datasets
+    """
+    final_datasets = list()
+    rows, cols = dataset.shape
+    for i in range(blocks_count):
+        final_datasets.append(np.zeros((0, cols)))
+
+    grouped_arrays = group_by_last_column(dataset)
+    
+    for grouped_arr in grouped_arrays:
+        print("Grouping arrays with value: ", grouped_arr[0, cols - 1])
+        splitted_datasets = split_dataset(grouped_arr, blocks_count)
+        for i in range(len(splitted_datasets)):
+            final_datasets[i] = np.vstack((final_datasets[i], splitted_datasets[i]))
+
+    return final_datasets
+
+def group_by_last_column(data) -> list:
+    """
+    Group dataset by last column (which takes integer values)
+    The result is a list containing np.ndarrays
+    """
+    data = data[:, :]
+    min_value = np.min(data, axis = 0)[-1]
+    max_value = np.max(data, axis = 0)[-1]
+    diff = max_value - min_value + 1 # arrays count
+    diff = np.int32(diff)
+    rows, cols = data.shape
+
+    grouped_arrays = list()
+
+    for i in range(diff):
+        grouped_arrays.append(np.zeros((0, cols)))
+
+    for r in range(rows):
+        group_index = np.int32(data[r, cols - 1]) - np.int32(min_value)
+        assert group_index >= 0
+        assert group_index < diff
+        grouped_arrays[group_index] = np.vstack((grouped_arrays[group_index], data[r, :]))
+
+    return grouped_arrays
 
 
 def remove_outliers(dataset, neighbors=20) -> np.ndarray:
@@ -178,8 +221,9 @@ def make_missing_values(dataset: np.ndarray) -> list:
         dataset[x, col_index] = np.nan
 
     sample_weight = 1 / dataset.shape[0]
-    dataset_weight = 1 - k * sample_weight
-
+    # dataset_weight = 1 - k * sample_weight
+    dataset_weight = dataset.shape[0] - k
+    
     print("Affected rows: {}, Dataset weight: {}".format(k, dataset_weight))
     print("")
 
