@@ -1,4 +1,3 @@
-from operator import imod
 from tskmodel import TSKModel
 from utils import create_fuzzy_variables_from_clusters, create_rules_from_clusters
 from fcm_analyzer import FCMAnalyzer
@@ -16,6 +15,8 @@ class LocalModel:
         self.fcm_analyzer = FCMAnalyzer(validity_method=validity_method)
         self.tsk_model = None
         self.scaler = None
+        self.train_inputs = None
+        self.train_outputs = None
         self.test_inputs = None
         self.test_outputs = None
         self.old_fis = None
@@ -26,6 +27,13 @@ class LocalModel:
 
     def restore_local_fis(self) -> None:
         self.tsk_model.fis = self.old_fis
+
+    def train_test_split(self) -> None:
+        train_inputs, test_inputs, train_outputs, test_outputs = train_test_split(self.scaled_data[:, :-1], self.scaled_data[:, -1], test_size=0.3)
+        self.train_inputs = train_inputs
+        self.train_outputs = train_outputs
+        self.test_inputs = test_inputs
+        self.test_outputs = test_outputs
 
     def fcm(self, scaler) -> None:
         """
@@ -57,31 +65,14 @@ class LocalModel:
         self.rules = rules
 
     def fit(self, rules=None) -> None:
-        # first step - normalize the data
-        # self.scaler = scaler
-        # scaled_data = self.scaler.fit_transform(self.dataset)
-        train_inputs, test_inputs, train_outputs, test_outputs = train_test_split(self.scaled_data[:, :-1], self.scaled_data[:, -1], test_size=0.2)
-        self.test_inputs = test_inputs
-        self.test_outputs = test_outputs
-
-        # second step - fuzzy c-means and rules creation
-        # clustering_result = self.fcm_analyzer.fit(scaled_data.T, error=0.001, maxiter=100)
-        # fuzzy_partition = self.fcm_analyzer.get_partition(k=rules_count)
-        # fuzzy_vars = create_fuzzy_variables_from_clusters(fuzzy_partition['cluster_centers'], 
-        #                                         cluster_stds=fuzzy_partition['crisp_cluster_stds'], 
-        #                                         feature_names=self.feature_names, 
-        #                                         show_fuzzy_vars=False)
-
-        # rules = create_rules_from_clusters(fuzzy_partition['cluster_centers'], fuzzy_vars)
-
         # third step - creation and training of TSK Model
         if rules is None:
             rules = self.rules
             
         self.tsk_model = TSKModel(rules, epochs=self.epochs, lr=self.lr, momentum=self.momentum, eg=self.eg)
 
-        self.error_history = self.tsk_model.fit(train_inputs, self.feature_names[:-1], train_outputs)
-        self.test_mse = self.tsk_model.test(test_inputs, test_outputs)
+        self.error_history = self.tsk_model.fit(self.train_inputs, self.feature_names[:-1], self.train_outputs)
+        self.test_mse = self.tsk_model.test(self.test_inputs, self.test_outputs)
     
     def test(self) -> float:
         return self.tsk_model.test(self.test_inputs, self.test_outputs)
